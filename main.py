@@ -84,6 +84,7 @@ def initialize():
 
     chatBox = Scrollbar(window)
     tb_output_text = Text(window, wrap='word', state='disabled', width=60, yscrollcommand=chatBox.set)
+    tb_output_text.tag_configure("bold", font="Helvetica 10 bold")
     chatBox.configure(command=tb_output_text.yview)
     tb_output_text.place(x=85, y=120)
 
@@ -118,6 +119,7 @@ def client_handler(client_socket, server_address):
             data = data.decode()
             if data == "9":
                 tb_output_text.configure(state='normal')
+                tb_output_text.insert('end', "Client: ", "bold")
                 tb_output_text.insert('end', "Server is going to be a client" + '\n')
                 tb_output_text.configure(state='disabled')
                 client_loop = False
@@ -143,12 +145,14 @@ def server_handler(server_socket, address):
         if info == '4':
             dbg("Keep alive received, Connection is on")
             tb_output_text.configure(state='normal')
+            tb_output_text.insert('end', "Server: ", "bold")
             tb_output_text.insert('end', "Keep alive received, Connection is on" + '\n')
             tb_output_text.configure(state='disabled')
             server_socket.sendto(str.encode("4"), address)
             info = ''
         if info == '9':
             tb_output_text.configure(state='normal')
+            tb_output_text.insert('end', "Server: ", "bold")
             tb_output_text.insert('end', "I am going to swich as a Client" + '\n')
             tb_output_text.configure(state='disabled')
             server_socket.sendto(str.encode("9"), address)
@@ -177,11 +181,13 @@ def keep_alive(client_sock, server_addr, interval):
 
         if info == '4':
             tb_output_text.configure(state='normal')
+            tb_output_text.insert('end', "Client: ", "bold")
             tb_output_text.insert('end', "Connection is working" + '\n')
             tb_output_text.configure(state='disabled')
             print("Connection is working")
         else:
             tb_output_text.configure(state='normal')
+            tb_output_text.insert('end', "Client: ", "bold")
             tb_output_text.insert('end', "Connection ended" + '\n')
             tb_output_text.configure(state='disabled')
             print("connection ended")
@@ -205,6 +211,7 @@ def server_login():
     server_port = tb_port.get("1.0", "end-1c")
     server_socket.bind(("0.0.0.0", int(server_port)))  # obsadi si port
     tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Server: ", "bold")
     tb_output_text.insert('end', "Server is running on port: " + server_port + '\n')
     tb_output_text.configure(state='disabled')
     dbg("waiting recvfrom")
@@ -258,6 +265,7 @@ def client_login():
             data = data.decode()
             if data == "1":
                 tb_output_text.configure(state='normal')
+                tb_output_text.insert('end', "Client: ", "bold")
                 tb_output_text.insert('end', "Connected to address:" + str(server_address) + '\n')
                 tb_output_text.configure(state='disabled')
                 keep_alive_thread(client_socket, server_address, 5).start()
@@ -268,6 +276,7 @@ def client_login():
         except (socket.timeout, socket.gaierror) as e:
             print(e)
             tb_output_text.configure(state='normal')
+            tb_output_text.insert('end', "Client: ", "bold")
             tb_output_text.insert('end', "Connection not working try again", '\n')
             tb_output_text.configure(state='disabled')
             print("Connection not working try again")
