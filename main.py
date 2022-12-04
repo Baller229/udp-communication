@@ -338,8 +338,8 @@ def on_check_server():
 def btn_start_click():
     dbg("btn_start_click")
     btn_start["text"] = "Running"
-    btn_start["bg"] = "green"
-    btn_start["disabledforeground"] = "red"
+    btn_start["bg"] = "light green"
+    btn_start["disabledforeground"] = "black"
     btn_start["state"] = DISABLED
     start()
 
