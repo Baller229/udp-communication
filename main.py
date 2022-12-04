@@ -17,6 +17,7 @@ client_loop = True
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_port = 0;
 
+
 # ================================================================
 #   *** START THE PROGRAM ***
 # ================================================================
@@ -69,15 +70,15 @@ def initialize():
     chb_server_checked = IntVar()
     chb_client_checked = IntVar()
 
-    chb_server = Checkbutton(text="Server", variable=chb_server_checked)
+    chb_server = Checkbutton(text="Server", variable=chb_server_checked, command=on_check_server)
     chb_server.place(x=300, y=50)
-    chb_client = Checkbutton(text="Client", variable=chb_client_checked)
+    chb_client = Checkbutton(text="Client", variable=chb_client_checked, command=on_check_client)
     chb_client.place(x=300, y=80)
-
-    btn_start = Button(window, text="Start", command=btn_start_click)
-    btn_start.place(x=520, y=50)
-    btn_switch = Button(window, text="Switch", command=btn_switch_click)
-    btn_switch.place(x=520, y=80)
+    global btn_start
+    btn_start = Button(window, text="Start", command=btn_start_click, width=10)
+    btn_start.place(x=490, y=50)
+    btn_switch = Button(window, text="Switch", command=btn_switch_click,  width=10)
+    btn_switch.place(x=490, y=80)
 
     global tb_output_text
 
@@ -218,8 +219,12 @@ def server_login():
 
     server_socket.shutdown(socket.SHUT_RDWR)
     server_socket.close()
-    time.sleep(2)
+    time.sleep(1)
     #dbg("thread status", client_thread().is_alive())
+    chb_server.deselect()
+    chb_client.select()
+    on_check_server()
+    on_check_client()
     client_loop = True
     client_thread().start()
 
@@ -276,6 +281,10 @@ def client_login():
     #     if keep_alive_end:
     #         break
     server_loop = True
+    chb_server.select()
+    chb_client.deselect()
+    on_check_server()
+    on_check_client()
     server_thread().start()
     dbg("client end")
 
@@ -304,18 +313,34 @@ def start():
 #  Button Start Click
 # ================================================================
 
-# def Switch_for_client():
+def on_check_client():
+    if chb_client_checked.get() == 1:
+        chb_client["fg"] = "green"
+    else:
+        chb_client["fg"] = "red"
+
+def on_check_server():
+    if chb_server_checked.get() == 1:
+        chb_server["fg"] = "green"
+    else:
+        chb_server["fg"] = "red"
 
 
 def btn_start_click():
     dbg("btn_start_click")
+    btn_start["text"] = "Running"
+    btn_start["bg"] = "green"
+    btn_start["disabledforeground"] = "red"
+    btn_start["state"] = DISABLED
     start()
 
 def btn_switch_click():
+
     dbg("btn_switch_click")
     global switch_roles_flag, server_loop
     switch_roles_flag = True
-    # server_loop = False
+    keep_alive_flag = False
+    server_loop = False
     # global server_port
     # server_address = ("127.0.0.1", int(server_port))
     # client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
