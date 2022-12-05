@@ -1,3 +1,4 @@
+import math
 import sys
 import threading
 import time
@@ -8,12 +9,15 @@ global thread_status
 
 keep_alive_flag = True
 keep_alive_end = False
+keep_alive_stop = False
 switch_roles_flag = False
 lock = threading.Lock()
 server_loop = True
 client_loop = True
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_port = 0;
+sending_message = False
+recieving_message = False
 
 
 # ================================================================
@@ -41,7 +45,7 @@ def dbg(*args, **kwargs):
 # ================================================================
 
 def initialize():
-    global tb_port, tb_ip, chb_server, chb_client, chb_server_checked, chb_client_checked, btn_start, tb_output_text
+    global tb_port, tb_ip, chb_server, chb_client, chb_server_checked, chb_client_checked, btn_start, tb_output_text, tb_packet_size, tb_message
     # WINDOW
     window = Tk()
     window.title("UDP Chat aplication")
@@ -56,8 +60,7 @@ def initialize():
     lbl_packet_size.place(x=20, y=530)
 
 
-    tb_message = Text(height=1, width=40)
-    tb_message.place(x=135, y=530)
+
     # TEXTBOXES
     tb_port = Text(height=1, width=5)
     tb_port.insert(END, "8080")
@@ -67,6 +70,8 @@ def initialize():
     tb_ip.place(x=85, y=80)
     tb_packet_size = Text(height=1, width=5)
     tb_packet_size.place(x=85, y=530)
+    tb_message = Text(height=1, width=40)
+    tb_message.place(x=135, y=530)
 
     # CHECKBOXES
     chb_server_checked = IntVar()
@@ -81,7 +86,7 @@ def initialize():
     btn_start.place(x=490, y=50)
     btn_switch = Button(window, text="Switch", command=btn_switch_click,  width=10)
     btn_switch.place(x=490, y=80)
-    btn_message = Button(window, text="Message")
+    btn_message = Button(window, text="Message", command=btn_message_click)
     btn_message.place(x=470, y=530)
     btn_file = Button(window, text="File")
     btn_file.place(x=540, y=530)
@@ -125,6 +130,12 @@ def btn_switch_click():
     client_socket.close()
 
 # ================================================================
+# BUTTON MESSAGE CLICK
+# ================================================================
+def btn_message_click():
+    global sending_message
+    sending_message = True
+# ================================================================
 # CHECK BOX EVENTS
 # ================================================================
 
@@ -158,8 +169,12 @@ def keep_alive_thread(client_socket, server_address, interval):
 # ================================================================
 
 def keep_alive(client_sock, server_addr, interval):
-    global keep_alive_end
+    global keep_alive_end, keep_alive_stop
     while keep_alive_flag:
+
+        if keep_alive_stop:
+            time.sleep(3)
+            continue
 
         if switch_roles_flag:
             tb_output_text.configure(state='normal')
@@ -188,6 +203,103 @@ def keep_alive(client_sock, server_addr, interval):
     keep_alive_end = True
     dbg("keep alive end")
 
+# ================================================================
+#   HEADER
+# ================================================================
+def header(id, type, data, p_size):
+    id_size = 24
+    packet = 0
+    type_size = 16
+    packet_id = format(id, 'b')
+    packet_type = ''.join(format(i, '08b') for i in bytearray(str(type), encoding='utf-8'))
+    temp_packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
+    packet_data = ''.join(format(i, '08b') for i in bytearray(str(temp_packet_data), encoding='utf-8'))
+    if len(packet_id) < id_size:
+        for i in range(id_size - len(packet_id)):
+            packet_id = ''.join(('0', packet_id))
+
+    packet = packet_id + packet_type + packet_data
+    return packet
+
+# ================================================================
+#   RECIEVE MESSAGE
+# ================================================================
+def decode_binary_string(s):
+    return ''.join(chr(int(s[i*8:i*8+8],2)) for i in range(len(s)//8))
+
+def recieve_message(server_sock):
+    dbg("now I am ready to recieve, send me total num of packet first")
+
+    # wait for initial message from client thats says he is going to send message
+    data = server_sock.recvfrom(1500)
+    stored_id = ["" for x in range(int(data[0]))]
+    stored_data = ["" for x in range(int(data[0]))]
+    message = ""
+
+    dbg("total num of packets is:", data[0])
+    server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
+
+    while True:
+        # as a server store number of all packets into variable
+        packet = server_sock.recvfrom(1500)
+        p_type = str(packet[0].decode())
+        if p_type == "21": # or if packet id = total num of packets
+            break
+
+        stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][40:])
+        server_sock.sendto(str.encode("20"), data[1])
+        tb_output_text.configure(state='normal')
+        tb_output_text.insert('end', "from Client: ", "bold")
+        tb_output_text.insert('end', "Recieved packet: " + str(int(packet[0][0:24], 2)) + '\n')
+        tb_output_text.configure(state='disabled')
+
+    for data in stored_data:
+        message += data
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Recieved Message: ", "bold")
+    tb_output_text.insert('end', str(message) + '\n')
+    tb_output_text.configure(state='disabled')
+
+
+
+    # in while True loop wait for recieve message with type '20'
+    # after recieved packet store data into array with id index
+    # if server recieve message with type '21' break the loop
+    # at out of while loop connect all data from array to string and output the message
+
+# ================================================================
+#   SEND MESSAGE
+# ================================================================
+
+def send_message(client_socket, server_address):
+    dbg("I am going to calculate packet size and so on")
+    client_socket.sendto(str.encode("19"), server_address)  # 19 - idem posielat spravu, tak sa priprav
+    client_socket.recvfrom(1500)
+    # wait for server to listen for messages
+    time.sleep(1)
+
+    packet_size = tb_packet_size.get("1.0", "end-1c")
+    message = tb_message.get("1.0", "end-1c")
+    if int(packet_size) > len(message):
+        number_of_packets = len(message)
+    else:
+        number_of_packets = math.ceil(len(message) / int(packet_size))
+    packet = 0
+    num_of_packets = str(number_of_packets)
+    dbg("Sending packet size...")
+    client_socket.sendto(str.encode(num_of_packets), server_address)
+    client_socket.recvfrom(1500)
+    dbg("I am going to send", number_of_packets, "packets")
+    for i in range(int(number_of_packets)):
+        packet = header(i, "20", message, packet_size)
+        #send packet
+        client_socket.sendto(str.encode(packet), server_address)
+        client_socket.recv(1500)
+        # wait for ACK from server
+        # if ACK was positive, continue
+        # if ACK was negative, resend packet again
+    dbg("Now i finally sent all message packets")
+    client_socket.sendto(str.encode("21"), server_address)
 # ================================================================
 #   SERVER LOGIN
 # ================================================================
@@ -256,6 +368,10 @@ def server_handler(server_socket, address):
             tb_output_text.configure(state='disabled')
             server_socket.sendto(str.encode("9"), address)
             server_loop = False
+        if info == '19':
+            dbg("Client is going to send me message, so I am going to be ready")
+            server_socket.sendto(str.encode("19"), address)
+            recieve_message(server_socket)
 
     dbg("server while end")
 
@@ -316,8 +432,16 @@ def client_login():
 
 def client_handler(client_socket, server_address):
     dbg("Client")
-    global client_loop, switch_roles_flag
+    global client_loop, switch_roles_flag, sending_message, keep_alive_stop
     while client_loop:
+        if sending_message:
+            keep_alive_stop = True
+            # wait keep alive to stop
+            #time.sleep(3)
+            send_message(client_socket, server_address)
+            sending_message = False
+            keep_alive_stop = False
+
         if switch_roles_flag:
             switch_roles_flag = False
             client_socket.sendto(str.encode("9"), server_address)
