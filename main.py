@@ -238,7 +238,10 @@ def recieve_message(server_sock):
 
     dbg("total num of packets is:", data[0])
     server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
-
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Server: ", "bold")
+    tb_output_text.insert('end', "Client is going to send me" + str(data[0]) + " packets" + '\n')
+    tb_output_text.configure(state='disabled')
     while True:
         # as a server store number of all packets into variable
         packet = server_sock.recvfrom(1500)
@@ -294,12 +297,23 @@ def send_message(client_socket, server_address):
         packet = header(i, "20", message, packet_size)
         #send packet
         client_socket.sendto(str.encode(packet), server_address)
+        tb_output_text.configure(state='normal')
+        tb_output_text.insert('end', "Client: ", "bold")
+        tb_output_text.insert('end', "Sent packet " + str(i) + '\n')
+        tb_output_text.configure(state='disabled')
         client_socket.recv(1500)
+        tb_output_text.configure(state='normal')
+        tb_output_text.insert('end', "Client: ", "bold")
+        tb_output_text.insert('end', "Server recieved packet " + str(i) + '\n')
         # wait for ACK from server
         # if ACK was positive, continue
         # if ACK was negative, resend packet again
     dbg("Now i finally sent all message packets")
     client_socket.sendto(str.encode("21"), server_address)
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Client: ", "bold")
+    tb_output_text.insert('end', "Succesfully sent message" + '\n')
+
 # ================================================================
 #   SERVER LOGIN
 # ================================================================
