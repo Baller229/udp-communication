@@ -284,7 +284,7 @@ def send_message(client_socket, server_address):
     packet_size = tb_packet_size.get("1.0", "end-1c")
     message = tb_message.get("1.0", "end-1c")
     if int(packet_size) > len(message):
-        number_of_packets = len(message)
+        number_of_packets = 1
     else:
         number_of_packets = math.ceil(len(message) / int(packet_size))
     packet = 0
@@ -417,7 +417,7 @@ def client_login():
                 tb_output_text.insert('end', "Client: ", "bold")
                 tb_output_text.insert('end', "Connected to address:" + str(server_address) + '\n')
                 tb_output_text.configure(state='disabled')
-                keep_alive_thread(client_socket, server_address, 5).start()
+                #keep_alive_thread(client_socket, server_address, 5).start()
                 client_handler(client_socket, server_address)
                 dbg("Connected to address:", server_address)
         except (socket.timeout, socket.gaierror) as e:
@@ -467,6 +467,7 @@ def client_handler(client_socket, server_address):
                 tb_output_text.insert('end', "Server is going to be a client" + '\n')
                 tb_output_text.configure(state='disabled')
                 client_loop = False
+        time.sleep(0.2)
     dbg("client handler end")
 
 # ================================================================
