@@ -4,6 +4,7 @@ import threading
 import time
 from tkinter import *
 import socket
+import select
 
 global thread_status
 
@@ -206,8 +207,19 @@ def keep_alive(client_sock, server_addr, interval):
 # ================================================================
 #   HEADER
 # ================================================================
+def check_sum(packet_id, packet_type, packet_data):
+    checksum = ''
+    count = len(packet_id) + len(packet_type) + len(packet_data) + 32
+    checksum = format(count, 'b')
+    return checksum
+
+def check_sum_server(packet_id, packet_type, checksum, packet_data):
+    return str(len(packet_id) + len(packet_type) + len(packet_data) + len(checksum))
+
 def header(id, type, data, p_size):
     id_size = 24
+    checksum_size = 32
+    checksum = ""
     packet = 0
     type_size = 16
     packet_id = format(id, 'b')
@@ -218,7 +230,11 @@ def header(id, type, data, p_size):
         for i in range(id_size - len(packet_id)):
             packet_id = ''.join(('0', packet_id))
 
-    packet = packet_id + packet_type + packet_data
+    checksum = check_sum(packet_id, packet_type, packet_data)
+    if len(checksum) < checksum_size:
+        for i in range(checksum_size - len(checksum)):
+            checksum = ''.join(('0', checksum))
+    packet = packet_id + packet_type + checksum + packet_data
     return packet
 
 # ================================================================
@@ -234,6 +250,7 @@ def recieve_message(server_sock):
     data = server_sock.recvfrom(1500)
     stored_id = ["" for x in range(int(data[0]))]
     stored_data = ["" for x in range(int(data[0]))]
+    checksum_server = ""
     message = ""
 
     dbg("total num of packets is:", data[0])
@@ -248,8 +265,14 @@ def recieve_message(server_sock):
         p_type = str(packet[0].decode())
         if p_type == "21": # or if packet id = total num of packets
             break
+        checksum_server = check_sum_server(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
 
-        stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][40:])
+        if(int(checksum_server) != int(packet[0][40:72], 2)):
+            dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
+            server_sock.sendto(str.encode("23"), data[1])
+            continue;
+
+        stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][72:])
         server_sock.sendto(str.encode("20"), data[1])
         tb_output_text.configure(state='normal')
         tb_output_text.insert('end', "from Client: ", "bold")
@@ -301,7 +324,16 @@ def send_message(client_socket, server_address):
         tb_output_text.insert('end', "Client: ", "bold")
         tb_output_text.insert('end', "Sent packet " + str(i) + '\n')
         tb_output_text.configure(state='disabled')
-        client_socket.recv(1500)
+
+        while True:
+            data = client_socket.recvfrom(1500)
+            info = str(data[0].decode())
+            if info == "23":
+                dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
+                client_socket.sendto(str.encode(packet), server_address)
+            else:
+                break
+
         tb_output_text.configure(state='normal')
         tb_output_text.insert('end', "Client: ", "bold")
         tb_output_text.insert('end', "Server recieved packet " + str(i) + '\n')
