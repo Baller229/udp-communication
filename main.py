@@ -19,6 +19,9 @@ server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_port = 0;
 sending_message = False
 recieving_message = False
+sending_file = False
+recieving_file = False
+
 
 
 # ================================================================
@@ -89,7 +92,7 @@ def initialize():
     btn_switch.place(x=490, y=80)
     btn_message = Button(window, text="Message", command=btn_message_click)
     btn_message.place(x=470, y=530)
-    btn_file = Button(window, text="File")
+    btn_file = Button(window, text="File", command=btn_file_click)
     btn_file.place(x=540, y=530)
 
     # MULTILINE TEXTBOX
@@ -137,6 +140,11 @@ def btn_message_click():
     global sending_message
     sending_message = True
 # ================================================================
+# BUTTON FILE CLICK
+# ================================================================
+def btn_file_click():
+    pass
+# ================================================================
 # CHECK BOX EVENTS
 # ================================================================
 
@@ -183,6 +191,7 @@ def keep_alive(client_sock, server_addr, interval):
             tb_output_text.configure(state='disabled')
             break
 
+        client_sock.setblocking(1)
         client_sock.sendto(str.encode('4'), server_addr)
         data = client_sock.recv(1500)
         info = str(data.decode())
@@ -273,8 +282,6 @@ def recieve_message(server_sock):
             continue;
 
         stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][72:])
-        dbg("Server, cakam 2 sekundy a odoslem ACK")
-        time.sleep(2)
         dbg("Odosielam ACK")
         packet_no = str(int(packet[0][0:24], 2))
         server_sock.sendto(str.encode(packet_no), data[1])
@@ -471,7 +478,7 @@ def client_login():
                 tb_output_text.insert('end', "Client: ", "bold")
                 tb_output_text.insert('end', "Connected to address:" + str(server_address) + '\n')
                 tb_output_text.configure(state='disabled')
-                #keep_alive_thread(client_socket, server_address, 5).start()
+                keep_alive_thread(client_socket, server_address, 5).start()
                 client_handler(client_socket, server_address)
                 dbg("Connected to address:", server_address)
         except (socket.timeout, socket.gaierror) as e:
@@ -505,10 +512,11 @@ def client_handler(client_socket, server_address):
         if sending_message:
             keep_alive_stop = True
             # wait keep alive to stop
-            #time.sleep(3)
+            time.sleep(3)
             send_message(client_socket, server_address)
             sending_message = False
             keep_alive_stop = False
+            time.sleep(3)
 
         if switch_roles_flag:
             switch_roles_flag = False
