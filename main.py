@@ -5,6 +5,8 @@ import time
 from tkinter import *
 import socket
 import select
+import os
+import struct
 
 global thread_status
 
@@ -143,7 +145,9 @@ def btn_message_click():
 # BUTTON FILE CLICK
 # ================================================================
 def btn_file_click():
-    pass
+    global sending_file
+    sending_file = True
+
 # ================================================================
 # CHECK BOX EVENTS
 # ================================================================
@@ -246,11 +250,32 @@ def header(id, type, data, p_size):
     packet = packet_id + packet_type + checksum + packet_data
     return packet
 
+def header_file(id, type, data, p_size):
+    id_size = 24
+    checksum_size = 32
+    checksum = ""
+    packet = 0
+    type_size = 16
+    packet_id = format(id, 'b')
+    packet_type = ''.join(format(i, '08b') for i in bytearray(str(type), encoding='utf-8'))
+    packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
+    #packet_data = ''.join(format(i, '08b') for i in bytearray(str(temp_packet_data), encoding='utf-8'))
+    if len(packet_id) < id_size:
+        for i in range(id_size - len(packet_id)):
+            packet_id = ''.join(('0', packet_id))
+
+    checksum = check_sum(packet_id, packet_type, packet_data)
+    if len(checksum) < checksum_size:
+        for i in range(checksum_size - len(checksum)):
+            checksum = ''.join(('0', checksum))
+    packet = packet_id + packet_type + checksum
+    return packet
+
+def decode_binary_string(s):
+    return ''.join(chr(int(s[i*8:i*8+8],2)) for i in range(len(s)//8))
 # ================================================================
 #   RECIEVE MESSAGE
 # ================================================================
-def decode_binary_string(s):
-    return ''.join(chr(int(s[i*8:i*8+8],2)) for i in range(len(s)//8))
 
 def recieve_message(server_sock):
     dbg("now I am ready to recieve, send me total num of packet first")
@@ -376,6 +401,147 @@ def send_message(client_socket, server_address):
     tb_output_text.insert('end', "Succesfully sent message" + '\n')
 
 # ================================================================
+#   RECIEVE FILE
+# ================================================================
+
+def recieve_file(server_sock):
+    dbg("now I am ready to recieve file, send me total num of packet first")
+
+    # wait for initial message from client thats says he is going to send file and no of packets
+    data = server_sock.recvfrom(1500)
+    server_sock.sendto(str.encode(""), data[1])
+    stored_id = ["" for x in range(int(data[0]))]
+    stored_data = ["" for x in range(int(data[0]))]
+    data_name = server_sock.recvfrom(1500)
+    file_name = str(data_name[0].decode())
+    checksum_server = ""
+    file = ""
+
+    dbg("total num of packets is:", data[0])
+    dbg("file name is:", file_name)
+    server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Server: ", "bold")
+    tb_output_text.insert('end', "Client is going to send me" + str(data[0]) + " packets" + '\n')
+    tb_output_text.configure(state='disabled')
+    while True:
+        #
+        packet = server_sock.recvfrom(1500)
+        p_type = decode_binary_string(packet[0][24:40])
+        if p_type == "21": # or if packet id = total num of packets
+            break
+        checksum_server = check_sum_server(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
+
+        if(int(checksum_server) != int(packet[0][40:72], 2)):
+            dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
+            server_sock.sendto(str.encode("-1"), data[1])
+            continue;
+
+        stored_data[int(packet[0][0:24], 2)] = packet[0][72:]
+        dbg("Odosielam ACK")
+        packet_no = str(int(packet[0][0:24], 2))
+        server_sock.sendto(str.encode(packet_no), data[1])
+        tb_output_text.configure(state='normal')
+        tb_output_text.insert('end', "from Client: ", "bold")
+        tb_output_text.insert('end', "Recieved packet: " + str(int(packet[0][0:24], 2)) + '\n')
+        tb_output_text.configure(state='disabled')
+    file_path = "c:\\server\\" + file_name
+    file = open(file_path, "wb")
+    for d_pack in stored_data:
+        file.write(d_pack)
+    file.close()
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Recieved Message: ", "bold")
+    tb_output_text.insert('end', "File recieved successfully" + '\n')
+    tb_output_text.configure(state='disabled')
+
+
+
+    # in while True loop wait for recieve message with type '20'
+    # after recieved packet store data into array with id index
+    # if server recieve message with type '21' break the loop
+    # at out of while loop connect all data from array to string and output the message
+
+# ================================================================
+#   SEND FILE
+# ================================================================
+
+def send_file(client_socket, server_address):
+    dbg("I am going to calculate file packet size and so on")
+    client_socket.sendto(str.encode("18"), server_address)  # 18 - idem posielat file, tak sa priprav
+    client_socket.recvfrom(1500)
+    # wait for server to listen for messages
+    time.sleep(1)
+
+    packet_size = tb_packet_size.get("1.0", "end-1c")
+    file_path = tb_message.get("1.0", "end-1c")
+    file_name = os.path.basename(file_path)
+    file_size = os.path.getsize(file_path)
+    file = open(file_path, "rb")
+    file_message = file.read();
+    if int(packet_size) > int(file_size):
+        number_of_packets = 1
+    else:
+        number_of_packets = math.ceil(int(file_size) / int(packet_size))
+    packet = 0
+    num_of_packets = str(number_of_packets)
+    dbg("Sending packet size...")
+    client_socket.sendto(str.encode(num_of_packets), server_address)
+    client_socket.recvfrom(1500)
+    dbg("Sending file name...")
+    client_socket.sendto(str.encode(file_name), server_address)
+    client_socket.recvfrom(1500)
+
+    dbg("I am going to send", number_of_packets, "packets")
+    for i in range(int(number_of_packets)):
+        packet = header_file(i, "20", file_message, packet_size)
+        packet_data = file_message[i * int(packet_size):i * int(packet_size) + int(packet_size)]
+        #send packet
+        client_socket.sendto(str.encode(packet) + packet_data, server_address)
+        tb_output_text.configure(state='normal')
+        tb_output_text.insert('end', "Client: ", "bold")
+        tb_output_text.insert('end', "Sent packet " + str(i) + '\n')
+        tb_output_text.configure(state='disabled')
+
+        while True:
+            data = None
+            dbg("Cakam na ACK zo strany servera 10 sekund")
+            client_socket.setblocking(0)
+            ready = select.select([client_socket], [], [], 10)
+            if ready[0]:
+                dbg("cakam na recv")
+                data = client_socket.recv(1500)
+            dbg("Je po timeoute")
+
+            dbg("Idem pozriet signalizacnu spravu od servera")
+            if(data != None):
+                data = data.decode()
+
+            if data == None:
+                dbg("Posielam ti packet znovu, nedostal som ack")
+                client_socket.sendto(str.encode(packet), server_address)
+                continue
+
+            if data == "-1":
+                dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
+                client_socket.sendto(str.encode(packet), server_address)
+            if data == str(i):
+                dbg("Idem na dalsi packet")
+                break
+        tb_output_text.configure(state='normal')
+        tb_output_text.insert('end', "Client: ", "bold")
+        tb_output_text.insert('end', "Server recieved packet " + str(i) + '\n')
+        # wait for ACK from server
+        # if ACK was positive, continue
+        # if ACK was negative, resend packet again
+    dbg("Now i finally sent all message packets")
+    final_packet = header_file(0, "21", "0", 1)
+    client_socket.sendto(str.encode(final_packet), server_address)
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Client: ", "bold")
+    tb_output_text.insert('end', "Succesfully sent file!" + '\n')
+
+# ================================================================
 #   SERVER LOGIN
 # ================================================================
 
@@ -447,7 +613,10 @@ def server_handler(server_socket, address):
             dbg("Client is going to send me message, so I am going to be ready")
             server_socket.sendto(str.encode("19"), address)
             recieve_message(server_socket)
-
+        if info == '18':
+            dbg("Client is going to send me file, so I am going to be ready")
+            server_socket.sendto(str.encode("18"), address)
+            recieve_file(server_socket)
     dbg("server while end")
 
 # ================================================================
@@ -507,7 +676,7 @@ def client_login():
 
 def client_handler(client_socket, server_address):
     dbg("Client")
-    global client_loop, switch_roles_flag, sending_message, keep_alive_stop
+    global client_loop, switch_roles_flag, sending_message, keep_alive_stop, sending_file
     while client_loop:
         if sending_message:
             keep_alive_stop = True
@@ -515,6 +684,15 @@ def client_handler(client_socket, server_address):
             time.sleep(3)
             send_message(client_socket, server_address)
             sending_message = False
+            keep_alive_stop = False
+            time.sleep(3)
+
+        if sending_file:
+            keep_alive_stop = True
+            # wait keep alive to stop
+            time.sleep(3)
+            send_file(client_socket, server_address)
+            sending_file = False
             keep_alive_stop = False
             time.sleep(3)
 
