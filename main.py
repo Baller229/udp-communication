@@ -260,7 +260,7 @@ def recieve_message(server_sock):
     tb_output_text.insert('end', "Client is going to send me" + str(data[0]) + " packets" + '\n')
     tb_output_text.configure(state='disabled')
     while True:
-        # as a server store number of all packets into variable
+        #
         packet = server_sock.recvfrom(1500)
         p_type = str(packet[0].decode())
         if p_type == "21": # or if packet id = total num of packets
@@ -269,11 +269,15 @@ def recieve_message(server_sock):
 
         if(int(checksum_server) != int(packet[0][40:72], 2)):
             dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
-            server_sock.sendto(str.encode("23"), data[1])
+            server_sock.sendto(str.encode("-1"), data[1])
             continue;
 
         stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][72:])
-        server_sock.sendto(str.encode("20"), data[1])
+        dbg("Server, cakam 2 sekundy a odoslem ACK")
+        time.sleep(2)
+        dbg("Odosielam ACK")
+        packet_no = str(int(packet[0][0:24], 2))
+        server_sock.sendto(str.encode(packet_no), data[1])
         tb_output_text.configure(state='normal')
         tb_output_text.insert('end', "from Client: ", "bold")
         tb_output_text.insert('end', "Recieved packet: " + str(int(packet[0][0:24], 2)) + '\n')
@@ -326,13 +330,31 @@ def send_message(client_socket, server_address):
         tb_output_text.configure(state='disabled')
 
         while True:
-            data = client_socket.recvfrom(1500)
-            info = str(data[0].decode())
-            if info == "23":
+            data = None
+            dbg("Cakam na ACK zo strany servera 10 sekund")
+            client_socket.setblocking(0)
+            ready = select.select([client_socket], [], [], 10)
+            if ready[0]:
+                dbg("cakam na recv")
+                data = client_socket.recv(1500)
+            dbg("Je po timeoute")
+
+            dbg("Idem pozriet signalizacnu spravu od servera")
+            if(data != None):
+                data = data.decode()
+
+            if data == None:
+                dbg("Posielam ti packet znovu, nedostal som ack")
+                client_socket.sendto(str.encode(packet), server_address)
+                continue
+
+            if data == "-1":
                 dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
                 client_socket.sendto(str.encode(packet), server_address)
-            else:
+            if data == str(i):
+                dbg("Idem na dalsi packet")
                 break
+
 
         tb_output_text.configure(state='normal')
         tb_output_text.insert('end', "Client: ", "bold")
