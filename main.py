@@ -6,10 +6,10 @@ from tkinter import *
 import socket
 import select
 import os
-import struct
-
+import random
 global thread_status
 
+server_switch = False
 keep_alive_flag = True
 keep_alive_end = False
 keep_alive_stop = False
@@ -51,11 +51,11 @@ def dbg(*args, **kwargs):
 # ================================================================
 
 def initialize():
-    global tb_port, tb_ip, chb_server, chb_client, chb_server_checked, chb_client_checked, btn_start, tb_output_text, tb_packet_size, tb_message
+    global tb_port, tb_ip, chb_server, chb_client, chb_server_checked, chb_client_checked, btn_start, tb_output_text, tb_packet_size, tb_message, chb_errors, chb_errors_checked
     # WINDOW
     window = Tk()
     window.title("UDP Chat aplication")
-    window.geometry("600x580")
+    window.geometry("650x580")
 
     # LABELS
     lbl_port = Label(text="PORT:")
@@ -82,10 +82,13 @@ def initialize():
     # CHECKBOXES
     chb_server_checked = IntVar()
     chb_client_checked = IntVar()
+    chb_errors_checked = IntVar()
     chb_server = Checkbutton(text="Server", variable=chb_server_checked, command=on_check_server)
     chb_server.place(x=300, y=50)
     chb_client = Checkbutton(text="Client", variable=chb_client_checked, command=on_check_client)
     chb_client.place(x=300, y=80)
+    chb_errors = Checkbutton(text="Errors", variable=chb_errors_checked, ) #command=on_check_errors
+    chb_errors.place(x=580, y=530)
 
     # BUTTONS
     btn_start = Button(window, text="Start", command=btn_start_click, width=10)
@@ -101,6 +104,8 @@ def initialize():
     chatBox = Scrollbar(window)
     tb_output_text = Text(window, wrap='word', state='disabled', width=60, yscrollcommand=chatBox.set)
     tb_output_text.tag_configure("bold", font="Helvetica 10 bold")
+    tb_output_text.tag_configure("errormsg", font="Helvetica 10", foreground="red")
+
     chatBox.configure(command=tb_output_text.yview)
     tb_output_text.place(x=85, y=120)
 
@@ -125,15 +130,18 @@ def btn_start_click():
 def btn_switch_click():
 
     dbg("btn_switch_click")
-    global switch_roles_flag, server_loop
-    switch_roles_flag = True
-    server_loop = False
-    global server_port
-    server_address = ("127.0.0.1", int(server_port))
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    client_socket.sendto(str.encode("9"), server_address)
-    client_socket.shutdown(socket.SHUT_RDWR)
-    client_socket.close()
+    global switch_roles_flag, server_loop, chb_server_checked, server_switch
+    if chb_server_checked.get() == 1:
+        server_switch = True
+    else:
+        switch_roles_flag = True
+        server_loop = False
+    # global server_port
+    # server_address = ("127.0.0.1", int(server_port))
+    # client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # client_socket.sendto(str.encode("9"), server_address)
+    # client_socket.shutdown(socket.SHUT_RDWR)
+    # client_socket.close()
 
 # ================================================================
 # BUTTON MESSAGE CLICK
@@ -221,8 +229,13 @@ def keep_alive(client_sock, server_addr, interval):
 #   HEADER
 # ================================================================
 def check_sum(packet_id, packet_type, packet_data):
+    global chb_errors_checked
     checksum = ''
-    count = len(packet_id) + len(packet_type) + len(packet_data) + 32
+    errors = 0
+    if chb_errors_checked.get() == 1:
+        errors = random.randint(0, 1)
+
+    count = len(packet_id) + len(packet_type) + len(packet_data) + 32 + errors
     checksum = format(count, 'b')
     return checksum
 
@@ -291,7 +304,7 @@ def recieve_message(server_sock):
     server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
     tb_output_text.configure(state='normal')
     tb_output_text.insert('end', "Server: ", "bold")
-    tb_output_text.insert('end', "Client is going to send me" + str(data[0]) + " packets" + '\n')
+    tb_output_text.insert('end', "Client is going to send me" + str(data[0].decode()) + " packets" + '\n')
     tb_output_text.configure(state='disabled')
     while True:
         #
@@ -304,6 +317,11 @@ def recieve_message(server_sock):
         if(int(checksum_server) != int(packet[0][40:72], 2)):
             dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
             server_sock.sendto(str.encode("-1"), data[1])
+            tb_output_text.configure(state='normal')
+            tb_output_text.insert('end', "from Client: ", "bold" )
+            tb_output_text.insert('end', "Recieved invalid packet: " + str(int(packet[0][0:24], 2)) + '\n', "errormsg")
+            tb_output_text.configure(state='disabled')
+            tb_output_text.see("end")
             continue;
 
         stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][72:])
@@ -317,17 +335,21 @@ def recieve_message(server_sock):
 
     for data in stored_data:
         message += data
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Recieved Message: ", "bold")
-    tb_output_text.insert('end', str(message) + '\n')
-    tb_output_text.configure(state='disabled')
-
-
+    write_to_textbox(message)
 
     # in while True loop wait for recieve message with type '20'
     # after recieved packet store data into array with id index
     # if server recieve message with type '21' break the loop
     # at out of while loop connect all data from array to string and output the message
+
+
+def write_to_textbox(message):
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', "Recieved Message: ", "bold")
+    tb_output_text.insert('end', str(message) + '\n')
+    tb_output_text.configure(state='disabled')
+    tb_output_text.see("end")
+
 
 # ================================================================
 #   SEND MESSAGE
@@ -382,6 +404,7 @@ def send_message(client_socket, server_address):
 
             if data == "-1":
                 dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
+                packet = header(i, "20", message, packet_size)
                 client_socket.sendto(str.encode(packet), server_address)
             if data == str(i):
                 dbg("Idem na dalsi packet")
@@ -571,7 +594,7 @@ def server_login():
     # CLOSE SOCKET AND SWITCH FOR CLIENT
     server_socket.shutdown(socket.SHUT_RDWR)
     server_socket.close()
-    time.sleep(1)
+    time.sleep(2)
     chb_server.deselect()
     chb_client.select()
     on_check_server()
@@ -586,8 +609,9 @@ def server_login():
 # ================================================================
 
 def server_handler(server_socket, address):
-    global server_loop
+    global server_loop, server_switch
     while server_loop:
+
 
         dbg("waiting recvfrom")
         data = server_socket.recvfrom(1500)  # tu caka, kym nepride message
@@ -617,6 +641,11 @@ def server_handler(server_socket, address):
             dbg("Client is going to send me file, so I am going to be ready")
             server_socket.sendto(str.encode("18"), address)
             recieve_file(server_socket)
+        if server_switch:
+            server_switch = False
+            server_socket.sendto(str.encode("99"), address)
+            server_loop = False
+
     dbg("server while end")
 
 # ================================================================
@@ -624,7 +653,7 @@ def server_handler(server_socket, address):
 # ================================================================
 
 def client_login():
-    global server_loop
+    global server_loop, switch_roles_flag
     thread = threading.current_thread()
     thread.name = "ClientThread"
     dbg("Client starting...")
@@ -662,6 +691,7 @@ def client_login():
     # CLOSE SOCKET AND SWITCH FOR SERVER
     client_socket.shutdown(socket.SHUT_RDWR)
     client_socket.close()
+    switch_roles_flag = False
     server_loop = True
     chb_server.select()
     chb_client.deselect()
@@ -676,8 +706,19 @@ def client_login():
 
 def client_handler(client_socket, server_address):
     dbg("Client")
-    global client_loop, switch_roles_flag, sending_message, keep_alive_stop, sending_file
+    global client_loop, switch_roles_flag, sending_message, keep_alive_stop, sending_file, server_loop
     while client_loop:
+        switch = 0
+        client_socket.setblocking(1)
+        ready = select.select([client_socket], [], [], 3)
+        if ready[0]:
+            switch = client_socket.recv(1500)
+        if switch != 0:
+            if switch.decode() == "99":
+                switch_roles_flag = True
+                server_loop = False
+                break
+
         if sending_message:
             keep_alive_stop = True
             # wait keep alive to stop
