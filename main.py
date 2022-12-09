@@ -24,6 +24,7 @@ sending_message = False
 recieving_message = False
 sending_file = False
 recieving_file = False
+stop_client = False
 
 
 
@@ -109,6 +110,8 @@ def initialize():
     # BUTTONS
     btn_start = Button(window, text="Start", command=btn_start_click, width=10)
     btn_start.place(x=555, y=50)
+    btn_stop = Button(window, text="Stop", command=btn_stop_click, width=6)
+    btn_stop.place(x=480, y=50)
     btn_switch = Button(window, text="Switch", command=btn_switch_click,  width=10)
     btn_switch.place(x=555, y=80)
     btn_message = Button(window, text="Message", command=btn_message_click)
@@ -151,6 +154,18 @@ def btn_switch_click():
     else:
         switch_roles_flag = True
         server_loop = False
+
+# ================================================================
+# BUTTON STOP CLICK EVENT
+# ================================================================
+
+def btn_stop_click():
+    global stop_client, keep_alive_flag
+    stop_client = True
+    btn_start["text"] = "Start"
+    btn_start["bg"] = "white"
+    #btn_start["disabledforeground"] = "black"
+    btn_start["state"] = NORMAL
 
 # ================================================================
 # BUTTON MESSAGE CLICK
@@ -624,6 +639,10 @@ def server_handler(server_socket, address):
         info = str(data[0].decode())
         dbg("recvform: ", info, data[1])
 
+        if info == 'ahoj':
+            server_socket.sendto(str.encode("1"), data[1])
+            address = data[1]
+
         if info == '4':
             dbg("Keep alive received, Connection is on")
             PRINT_INFO("Server: ", "Keep Alive recieved, Connection is on", " ")
@@ -641,6 +660,8 @@ def server_handler(server_socket, address):
             dbg("Client is going to send me file, so I am going to be ready")
             server_socket.sendto(str.encode("18"), address)
             recieve_file(server_socket)
+        if info == '55':
+            PRINT_INFO("Server: ", "Client disconnected...", " ")
         if server_switch:
             server_switch = False
             server_socket.sendto(str.encode("99"), address)
@@ -652,7 +673,7 @@ def server_handler(server_socket, address):
 # ================================================================
 
 def client_login():
-    global server_loop, switch_roles_flag
+    global server_loop, switch_roles_flag, stop_client, keep_alive_flag
     thread = threading.current_thread()
     thread.name = "ClientThread"
     dbg("Client starting...")
@@ -672,6 +693,7 @@ def client_login():
             data = data.decode()
             if data == "1":
                 PRINT_INFO("Client: ", "Connected to address: ", str(server_address))
+                keep_alive_flag = True
                 keep_alive_thread(client_socket, server_address, 5).start()
                 client_handler(client_socket, server_address)
                 dbg("Connected to address:", server_address)
@@ -684,13 +706,19 @@ def client_login():
     # CLOSE SOCKET AND SWITCH FOR SERVER
     client_socket.shutdown(socket.SHUT_RDWR)
     client_socket.close()
-    switch_roles_flag = False
-    server_loop = True
-    chb_server.select()
-    chb_client.deselect()
-    on_check_server()
-    on_check_client()
-    server_thread().start()
+    if not stop_client:
+        PRINT_INFO("Client: ", "Not Shut down", " ")
+        switch_roles_flag = False
+        server_loop = True
+        chb_server.select()
+        chb_client.deselect()
+        on_check_server()
+        on_check_client()
+        server_thread().start()
+    else:
+        PRINT_INFO("Client: ", "Shuting Down", " ")
+        stop_client = False
+        keep_alive_flag = False
     dbg("client end")
 
 # ================================================================
@@ -699,7 +727,8 @@ def client_login():
 
 def client_handler(client_socket, server_address):
     dbg("Client")
-    global client_loop, switch_roles_flag, sending_message, keep_alive_stop, sending_file, server_loop
+    PRINT_INFO("Client: ", "Client handler", " ")
+    global client_loop, switch_roles_flag, sending_message, keep_alive_stop, sending_file, server_loop, keep_alive_flag
     while client_loop:
         switch = 0
         client_socket.setblocking(1)
@@ -711,6 +740,10 @@ def client_handler(client_socket, server_address):
                 switch_roles_flag = True
                 server_loop = False
                 break
+
+        if stop_client:
+            client_socket.sendto(str.encode("55"), server_address)
+            break
 
         if sending_message:
             keep_alive_stop = True
