@@ -418,9 +418,7 @@ def send_message(client_socket, server_address):
                 break
 
         PRINT_INFO("Client: ", "Server recieved packet ", str(i))
-        # wait for ACK from server
-        # if ACK was positive, continue
-        # if ACK was negative, resend packet again
+
     dbg("Now i finally sent all message packets")
     client_socket.sendto(str.encode("21"), server_address)
     PRINT_INFO("Client: ", "Succesfully sent message", " ")
@@ -489,6 +487,8 @@ def send_file(client_socket, server_address):
     file_size = os.path.getsize(file_path)
     file = open(file_path, "rb")
     file_message = file.read();
+    if int(packet_size) > 1428:
+        packet_size = "1428"
     if int(packet_size) > int(file_size):
         number_of_packets = 1
     else:
