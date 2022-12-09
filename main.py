@@ -356,6 +356,8 @@ def recieve_message(server_sock):
         packet_no = str(int(packet[0][0:24], 2))
         server_sock.sendto(str.encode(packet_no), data[1])
         PRINT_INFO("Client: ", "Recieved packet: ", str(int(packet[0][0:24], 2)))
+        PRINT_INFO("Client: ", "Length: ", str(len(packet[0])))
+
 
     for data in stored_data:
         message += data
@@ -366,6 +368,7 @@ def recieve_message(server_sock):
 # ================================================================
 
 def send_message(client_socket, server_address):
+    PRINT_INFO("Client: ", "I am going to send message", " ")
     dbg("I am going to calculate packet size and so on")
     client_socket.sendto(str.encode("19"), server_address)  # 19 - idem posielat spravu, tak sa priprav
     client_socket.recvfrom(1500)
@@ -382,6 +385,7 @@ def send_message(client_socket, server_address):
     num_of_packets = str(number_of_packets)
     dbg("Sending packet size...")
     client_socket.sendto(str.encode(num_of_packets), server_address)
+    PRINT_INFO("Client: ", "Number of packets will be: ", num_of_packets)
     client_socket.recvfrom(1500)
     dbg("I am going to send", number_of_packets, "packets")
     for i in range(int(number_of_packets)):
@@ -389,6 +393,7 @@ def send_message(client_socket, server_address):
         #send packet
         client_socket.sendto(str.encode(packet), server_address)
         PRINT_INFO("Client: ", "Sent packet: ", str(i))
+        PRINT_INFO("Client: ", "Length: ", str(len(packet)))
 
         while True:
             data = None
@@ -406,11 +411,15 @@ def send_message(client_socket, server_address):
 
             if data == None:
                 dbg("Posielam ti packet znovu, nedostal som ack")
+                PRINT_ERROR("Client: ", "I sent you again packet: ", str(i))
+                PRINT_ERROR("Client: ", "Length: ", str(len(packet)))
                 client_socket.sendto(str.encode(packet), server_address)
                 continue
 
             if data == "-1":
                 dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
+                PRINT_ERROR("Client: ", "I sent you again packet: ", str(i))
+                PRINT_ERROR("Client: ", "Length: ", str(len(packet)))
                 packet = header(i, "20", message, packet_size)
                 client_socket.sendto(str.encode(packet), server_address)
             if data == str(i):
@@ -437,6 +446,7 @@ def recieve_file(server_sock):
     stored_data = ["" for x in range(int(data[0]))]
     data_name = server_sock.recvfrom(1500)
     file_name = str(data_name[0].decode())
+    file_path = "c:\\server\\" + file_name
     checksum_server = ""
     file = ""
 
@@ -444,6 +454,9 @@ def recieve_file(server_sock):
     dbg("file name is:", file_name)
     server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
     PRINT_INFO("Server: ", "Total packet number from Client will be: ", str(data[0].decode()))
+    PRINT_INFO("Server: ", "File name: ", file_name)
+    PRINT_INFO("Server: ", "File Path where I store file: ", file_path)
+
     while True:
         #
         packet = server_sock.recvfrom(1500)
@@ -456,6 +469,7 @@ def recieve_file(server_sock):
             dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
             server_sock.sendto(str.encode("-1"), data[1])
             PRINT_ERROR("Server: ", "Recieved invalid packet: ", str(int(packet[0][0:24], 2)))
+            PRINT_ERROR("Server: ", "Packet Length: ", str(len(packet[0])))
             continue;
 
         stored_data[int(packet[0][0:24], 2)] = packet[0][72:]
@@ -463,18 +477,22 @@ def recieve_file(server_sock):
         packet_no = str(int(packet[0][0:24], 2))
         server_sock.sendto(str.encode(packet_no), data[1])
         PRINT_INFO("Server: ", "Recieved packet: ", str(int(packet[0][0:24], 2)))
-    file_path = "c:\\server\\" + file_name
+        PRINT_INFO("Server: ", "Packet Length: ", str(len(packet[0])))
     file = open(file_path, "wb")
     for d_pack in stored_data:
         file.write(d_pack)
     file.close()
     PRINT_INFO("Server: ", "File recieved successfully", " ")
+    PRINT_INFO("Server: ", "File name: ", file_name)
+    PRINT_INFO("Server: ", "File Path: ", file_path)
+
 
 # ================================================================
 #   SEND FILE
 # ================================================================
 
 def send_file(client_socket, server_address):
+    PRINT_INFO("Client: ", "I am going to send file", " ")
     dbg("I am going to calculate file packet size and so on")
     client_socket.sendto(str.encode("18"), server_address)  # 18 - idem posielat file, tak sa priprav
     client_socket.recvfrom(1500)
@@ -494,6 +512,9 @@ def send_file(client_socket, server_address):
     else:
         number_of_packets = math.ceil(int(file_size) / int(packet_size))
     packet = 0
+    PRINT_INFO("Client: ", "File Name: ", file_name)
+    PRINT_INFO("Client: ", "File Path: ", file_path)
+    PRINT_INFO("Client: ", "File Size: ", str(file_size))
     num_of_packets = str(number_of_packets)
     dbg("Sending packet size...")
     client_socket.sendto(str.encode(num_of_packets), server_address)
@@ -509,7 +530,7 @@ def send_file(client_socket, server_address):
         #send packet
         client_socket.sendto(str.encode(packet) + packet_data, server_address)
         PRINT_INFO("Client: ", "Sent packet: ", str(i))
-
+        PRINT_INFO("Client: ", "Packet Length: ", str(len(packet) + len(packet_data)))
         while True:
             data = None
             dbg("Cakam na ACK zo strany servera 10 sekund")
@@ -528,6 +549,8 @@ def send_file(client_socket, server_address):
                 dbg("Posielam ti packet znovu, nedostal som ack")
                 packet = header_file(i, "20", file_message, packet_size)
                 packet_data = file_message[i * int(packet_size):i * int(packet_size) + int(packet_size)]
+                PRINT_ERROR("Client: ", "Send again packet: ", str(i))
+                PRINT_ERROR("Client: ", "Packet Length: ", str(len(packet) + len(packet_data)))
                 client_socket.sendto(str.encode(packet) + packet_data, server_address)
                 continue
 
@@ -535,6 +558,8 @@ def send_file(client_socket, server_address):
                 dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
                 packet = header_file(i, "20", file_message, packet_size)
                 packet_data = file_message[i * int(packet_size):i * int(packet_size) + int(packet_size)]
+                PRINT_ERROR("Client: ", "Send again packet: ", str(i))
+                PRINT_ERROR("Client: ", "Packet Length: ", str(len(packet) + len(packet_data)))
                 client_socket.sendto(str.encode(packet) + packet_data, server_address)
             if data == str(i):
                 dbg("Idem na dalsi packet")
@@ -544,7 +569,7 @@ def send_file(client_socket, server_address):
     dbg("Now i finally sent all message packets")
     final_packet = header_file(0, "21", "0", 1)
     client_socket.sendto(str.encode(final_packet), server_address)
-    PRINT_INFO("Client: ", "Succesfully sent file!", " ")
+    PRINT_INFO("Client: ", "Succesfully sent file: ", file_name)
 
 # ================================================================
 #   SERVER LOGIN
