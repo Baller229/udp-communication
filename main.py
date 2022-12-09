@@ -362,6 +362,7 @@ def recieve_message(server_sock):
     for data in stored_data:
         message += data
     PRINT_INFO("Recieved Message:", " ", str(message))
+    PRINT_INFO("Server: ", "Message Size: ", str(len(message)))
 
 # ================================================================
 #   SEND MESSAGE
@@ -387,6 +388,7 @@ def send_message(client_socket, server_address):
     client_socket.sendto(str.encode(num_of_packets), server_address)
     PRINT_INFO("Client: ", "Number of packets will be: ", num_of_packets)
     client_socket.recvfrom(1500)
+    PRINT_INFO("Client: ", "Message Size: ", str(len(message)))
     dbg("I am going to send", number_of_packets, "packets")
     for i in range(int(number_of_packets)):
         packet = header(i, "20", message, packet_size)
@@ -447,6 +449,7 @@ def recieve_file(server_sock):
     data_name = server_sock.recvfrom(1500)
     file_name = str(data_name[0].decode())
     file_path = "c:\\server\\" + file_name
+    file_size = 0
     checksum_server = ""
     file = ""
 
@@ -480,11 +483,13 @@ def recieve_file(server_sock):
         PRINT_INFO("Server: ", "Packet Length: ", str(len(packet[0])))
     file = open(file_path, "wb")
     for d_pack in stored_data:
+        file_size += len(d_pack)
         file.write(d_pack)
     file.close()
     PRINT_INFO("Server: ", "File recieved successfully", " ")
     PRINT_INFO("Server: ", "File name: ", file_name)
     PRINT_INFO("Server: ", "File Path: ", file_path)
+    PRINT_INFO("Server: ", "File Size: ", str(file_size))
 
 
 # ================================================================
