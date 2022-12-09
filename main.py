@@ -1,3 +1,4 @@
+import binascii
 import math
 import sys
 import threading
@@ -27,8 +28,25 @@ recieving_file = False
 
 
 # ================================================================
+#
+# ================================================================
+def PRINT_ERROR(role, strArg, message):
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', role, "bold")
+    tb_output_text.insert('end', strArg + message + '\n', "errormsg")
+    tb_output_text.configure(state='disabled')
+    tb_output_text.see("end")
+
+def PRINT_INFO(role, strArg, message):
+    tb_output_text.configure(state='normal')
+    tb_output_text.insert('end', role, "bold")
+    tb_output_text.insert('end', strArg + message + '\n')
+    tb_output_text.configure(state='disabled')
+    tb_output_text.see("end")
+# ================================================================
 # LOGGER
 # ================================================================
+
 
 def dbg(*args, **kwargs):
     frame_obj = sys._getframe(1)  # currentframe()  # get frame of caller function
@@ -55,7 +73,7 @@ def initialize():
     # WINDOW
     window = Tk()
     window.title("UDP Chat aplication")
-    window.geometry("650x580")
+    window.geometry("680x580")
 
     # LABELS
     lbl_port = Label(text="PORT:")
@@ -64,8 +82,6 @@ def initialize():
     lbl_ip.place(x=20, y=80)
     lbl_packet_size = Label(text="Packet Size:")
     lbl_packet_size.place(x=20, y=530)
-
-
 
     # TEXTBOXES
     tb_port = Text(height=1, width=5)
@@ -92,9 +108,9 @@ def initialize():
 
     # BUTTONS
     btn_start = Button(window, text="Start", command=btn_start_click, width=10)
-    btn_start.place(x=490, y=50)
+    btn_start.place(x=555, y=50)
     btn_switch = Button(window, text="Switch", command=btn_switch_click,  width=10)
-    btn_switch.place(x=490, y=80)
+    btn_switch.place(x=555, y=80)
     btn_message = Button(window, text="Message", command=btn_message_click)
     btn_message.place(x=470, y=530)
     btn_file = Button(window, text="File", command=btn_file_click)
@@ -102,10 +118,9 @@ def initialize():
 
     # MULTILINE TEXTBOX
     chatBox = Scrollbar(window)
-    tb_output_text = Text(window, wrap='word', state='disabled', width=60, yscrollcommand=chatBox.set)
+    tb_output_text = Text(window, wrap='word', state='disabled', width=78, font="Helvetica 10", yscrollcommand=chatBox.set)
     tb_output_text.tag_configure("bold", font="Helvetica 10 bold")
     tb_output_text.tag_configure("errormsg", font="Helvetica 10", foreground="red")
-
     chatBox.configure(command=tb_output_text.yview)
     tb_output_text.place(x=85, y=120)
 
@@ -136,22 +151,19 @@ def btn_switch_click():
     else:
         switch_roles_flag = True
         server_loop = False
-    # global server_port
-    # server_address = ("127.0.0.1", int(server_port))
-    # client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    # client_socket.sendto(str.encode("9"), server_address)
-    # client_socket.shutdown(socket.SHUT_RDWR)
-    # client_socket.close()
 
 # ================================================================
 # BUTTON MESSAGE CLICK
 # ================================================================
+
 def btn_message_click():
     global sending_message
     sending_message = True
+
 # ================================================================
 # BUTTON FILE CLICK
 # ================================================================
+
 def btn_file_click():
     global sending_file
     sending_file = True
@@ -198,9 +210,7 @@ def keep_alive(client_sock, server_addr, interval):
             continue
 
         if switch_roles_flag:
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "Keep Alive is OFF" + '\n')
-            tb_output_text.configure(state='disabled')
+            PRINT_INFO("Client: ", "Keep Alive is OFF", " ")
             break
 
         client_sock.setblocking(1)
@@ -209,17 +219,10 @@ def keep_alive(client_sock, server_addr, interval):
         info = str(data.decode())
 
         if info == '4':
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "Client: ", "bold")
-            tb_output_text.insert('end', "Connection is working" + '\n')
-            tb_output_text.configure(state='disabled')
-            print("Connection is working")
+            PRINT_INFO("Client: ", "Connection is working", " ")
+
         else:
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "Client: ", "bold")
-            tb_output_text.insert('end', "Connection ended" + '\n')
-            tb_output_text.configure(state='disabled')
-            print("connection ended")
+            PRINT_INFO("Client: ", "Connection ended", " ")
             break
         time.sleep(interval)
     keep_alive_end = True
@@ -228,6 +231,20 @@ def keep_alive(client_sock, server_addr, interval):
 # ================================================================
 #   HEADER
 # ================================================================
+def check_sum_file(packet_id, packet_type, packet_data):
+    global chb_errors_checked
+    checksum = ''
+    errors = 0
+    if chb_errors_checked.get() == 1:
+        errors = random.randint(0, 1)
+        dbg("ERROR:", errors)
+    crc_checksum = 0
+    crc_checksum = binascii.crc32(packet_data, 0)
+    crc_checksum -= errors
+    count = len(packet_id) + len(packet_type) + len(packet_data) + 32 + errors
+    checksum = format(count, 'b')
+    return crc_checksum
+
 def check_sum(packet_id, packet_type, packet_data):
     global chb_errors_checked
     checksum = ''
@@ -235,12 +252,25 @@ def check_sum(packet_id, packet_type, packet_data):
     if chb_errors_checked.get() == 1:
         errors = random.randint(0, 1)
 
+    crc_checksum = 0
+    packet_data_bytes = bytes(packet_data, 'utf-8')
+    crc_checksum = binascii.crc32(packet_data_bytes, 0)
+    crc_checksum += errors
     count = len(packet_id) + len(packet_type) + len(packet_data) + 32 + errors
     checksum = format(count, 'b')
-    return checksum
+    return crc_checksum
+
+def check_sum_server_file(packet_id, packet_type, checksum, packet_data):
+
+    crc_checksum_server = binascii.crc32(packet_data, 0)
+    return crc_checksum_server
 
 def check_sum_server(packet_id, packet_type, checksum, packet_data):
-    return str(len(packet_id) + len(packet_type) + len(packet_data) + len(checksum))
+    crc_checksum_server = 0
+    data = decode_binary_string(packet_data)
+    data_binary = bytes(data, "utf-8")
+    crc_checksum_server = binascii.crc32(data_binary, 0)
+    return crc_checksum_server
 
 def header(id, type, data, p_size):
     id_size = 24
@@ -251,16 +281,18 @@ def header(id, type, data, p_size):
     packet_id = format(id, 'b')
     packet_type = ''.join(format(i, '08b') for i in bytearray(str(type), encoding='utf-8'))
     temp_packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
-    packet_data = ''.join(format(i, '08b') for i in bytearray(str(temp_packet_data), encoding='utf-8'))
+
     if len(packet_id) < id_size:
         for i in range(id_size - len(packet_id)):
             packet_id = ''.join(('0', packet_id))
 
-    checksum = check_sum(packet_id, packet_type, packet_data)
-    if len(checksum) < checksum_size:
-        for i in range(checksum_size - len(checksum)):
-            checksum = ''.join(('0', checksum))
-    packet = packet_id + packet_type + checksum + packet_data
+    checksum = check_sum(packet_id, packet_type, temp_packet_data)
+    checksum_encoded = format(checksum, 'b')
+    packet_data = ''.join(format(i, '08b') for i in bytearray(str(temp_packet_data), encoding='utf-8'))
+    if len(checksum_encoded) < checksum_size:
+        for i in range(checksum_size - len(checksum_encoded)):
+            checksum_encoded = ''.join(('0', checksum_encoded))
+    packet = packet_id + packet_type + checksum_encoded + packet_data
     return packet
 
 def header_file(id, type, data, p_size):
@@ -269,6 +301,7 @@ def header_file(id, type, data, p_size):
     checksum = ""
     packet = 0
     type_size = 16
+    checksum_encoded = ""
     packet_id = format(id, 'b')
     packet_type = ''.join(format(i, '08b') for i in bytearray(str(type), encoding='utf-8'))
     packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
@@ -277,11 +310,13 @@ def header_file(id, type, data, p_size):
         for i in range(id_size - len(packet_id)):
             packet_id = ''.join(('0', packet_id))
 
-    checksum = check_sum(packet_id, packet_type, packet_data)
-    if len(checksum) < checksum_size:
-        for i in range(checksum_size - len(checksum)):
-            checksum = ''.join(('0', checksum))
-    packet = packet_id + packet_type + checksum
+    if type == "20":
+        checksum = check_sum_file(packet_id, packet_type, packet_data)
+        checksum_encoded = format(checksum, 'b')
+        if len(checksum_encoded) < checksum_size:
+            for i in range(checksum_size - len(checksum_encoded)):
+                checksum_encoded = ''.join(('0', checksum_encoded))
+    packet = packet_id + packet_type + checksum_encoded
     return packet
 
 def decode_binary_string(s):
@@ -302,10 +337,7 @@ def recieve_message(server_sock):
 
     dbg("total num of packets is:", data[0])
     server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Server: ", "bold")
-    tb_output_text.insert('end', "Client is going to send me" + str(data[0].decode()) + " packets" + '\n')
-    tb_output_text.configure(state='disabled')
+    PRINT_INFO("Server: ", "Total packet number from Client will be: ", str(data[0].decode()))
     while True:
         #
         packet = server_sock.recvfrom(1500)
@@ -313,43 +345,21 @@ def recieve_message(server_sock):
         if p_type == "21": # or if packet id = total num of packets
             break
         checksum_server = check_sum_server(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
-
-        if(int(checksum_server) != int(packet[0][40:72], 2)):
+        if(checksum_server != int(packet[0][40:72], 2)):
             dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
             server_sock.sendto(str.encode("-1"), data[1])
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "from Client: ", "bold" )
-            tb_output_text.insert('end', "Recieved invalid packet: " + str(int(packet[0][0:24], 2)) + '\n', "errormsg")
-            tb_output_text.configure(state='disabled')
-            tb_output_text.see("end")
+            PRINT_ERROR("Client: ", "Recieved invalid packet: ", str(int(packet[0][0:24], 2)))
             continue;
 
         stored_data[int(packet[0][0:24], 2)] = decode_binary_string(packet[0][72:])
         dbg("Odosielam ACK")
         packet_no = str(int(packet[0][0:24], 2))
         server_sock.sendto(str.encode(packet_no), data[1])
-        tb_output_text.configure(state='normal')
-        tb_output_text.insert('end', "from Client: ", "bold")
-        tb_output_text.insert('end', "Recieved packet: " + str(int(packet[0][0:24], 2)) + '\n')
-        tb_output_text.configure(state='disabled')
+        PRINT_INFO("Client: ", "Recieved packet: ", str(int(packet[0][0:24], 2)))
 
     for data in stored_data:
         message += data
-    write_to_textbox(message)
-
-    # in while True loop wait for recieve message with type '20'
-    # after recieved packet store data into array with id index
-    # if server recieve message with type '21' break the loop
-    # at out of while loop connect all data from array to string and output the message
-
-
-def write_to_textbox(message):
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Recieved Message: ", "bold")
-    tb_output_text.insert('end', str(message) + '\n')
-    tb_output_text.configure(state='disabled')
-    tb_output_text.see("end")
-
+    PRINT_INFO("Recieved Message:", " ", str(message))
 
 # ================================================================
 #   SEND MESSAGE
@@ -378,10 +388,7 @@ def send_message(client_socket, server_address):
         packet = header(i, "20", message, packet_size)
         #send packet
         client_socket.sendto(str.encode(packet), server_address)
-        tb_output_text.configure(state='normal')
-        tb_output_text.insert('end', "Client: ", "bold")
-        tb_output_text.insert('end', "Sent packet " + str(i) + '\n')
-        tb_output_text.configure(state='disabled')
+        PRINT_INFO("Client: ", "Sent packet: ", str(i))
 
         while True:
             data = None
@@ -410,18 +417,13 @@ def send_message(client_socket, server_address):
                 dbg("Idem na dalsi packet")
                 break
 
-
-        tb_output_text.configure(state='normal')
-        tb_output_text.insert('end', "Client: ", "bold")
-        tb_output_text.insert('end', "Server recieved packet " + str(i) + '\n')
+        PRINT_INFO("Client: ", "Server recieved packet ", str(i))
         # wait for ACK from server
         # if ACK was positive, continue
         # if ACK was negative, resend packet again
     dbg("Now i finally sent all message packets")
     client_socket.sendto(str.encode("21"), server_address)
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Client: ", "bold")
-    tb_output_text.insert('end', "Succesfully sent message" + '\n')
+    PRINT_INFO("Client: ", "Succesfully sent message", " ")
 
 # ================================================================
 #   RECIEVE FILE
@@ -443,47 +445,32 @@ def recieve_file(server_sock):
     dbg("total num of packets is:", data[0])
     dbg("file name is:", file_name)
     server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Server: ", "bold")
-    tb_output_text.insert('end', "Client is going to send me" + str(data[0]) + " packets" + '\n')
-    tb_output_text.configure(state='disabled')
+    PRINT_INFO("Server: ", "Total packet number from Client will be: ", str(data[0].decode()))
     while True:
         #
         packet = server_sock.recvfrom(1500)
         p_type = decode_binary_string(packet[0][24:40])
         if p_type == "21": # or if packet id = total num of packets
             break
-        checksum_server = check_sum_server(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
+        checksum_server = check_sum_server_file(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
 
         if(int(checksum_server) != int(packet[0][40:72], 2)):
             dbg("Packet mi dosiel poskodeny, posli mi ho znovu")
             server_sock.sendto(str.encode("-1"), data[1])
+            PRINT_ERROR("Server: ", "Recieved invalid packet: ", str(int(packet[0][0:24], 2)))
             continue;
 
         stored_data[int(packet[0][0:24], 2)] = packet[0][72:]
         dbg("Odosielam ACK")
         packet_no = str(int(packet[0][0:24], 2))
         server_sock.sendto(str.encode(packet_no), data[1])
-        tb_output_text.configure(state='normal')
-        tb_output_text.insert('end', "from Client: ", "bold")
-        tb_output_text.insert('end', "Recieved packet: " + str(int(packet[0][0:24], 2)) + '\n')
-        tb_output_text.configure(state='disabled')
+        PRINT_INFO("Server: ", "Recieved packet: ", str(int(packet[0][0:24], 2)))
     file_path = "c:\\server\\" + file_name
     file = open(file_path, "wb")
     for d_pack in stored_data:
         file.write(d_pack)
     file.close()
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Recieved Message: ", "bold")
-    tb_output_text.insert('end', "File recieved successfully" + '\n')
-    tb_output_text.configure(state='disabled')
-
-
-
-    # in while True loop wait for recieve message with type '20'
-    # after recieved packet store data into array with id index
-    # if server recieve message with type '21' break the loop
-    # at out of while loop connect all data from array to string and output the message
+    PRINT_INFO("Server: ", "File recieved successfully", " ")
 
 # ================================================================
 #   SEND FILE
@@ -521,10 +508,7 @@ def send_file(client_socket, server_address):
         packet_data = file_message[i * int(packet_size):i * int(packet_size) + int(packet_size)]
         #send packet
         client_socket.sendto(str.encode(packet) + packet_data, server_address)
-        tb_output_text.configure(state='normal')
-        tb_output_text.insert('end', "Client: ", "bold")
-        tb_output_text.insert('end', "Sent packet " + str(i) + '\n')
-        tb_output_text.configure(state='disabled')
+        PRINT_INFO("Client: ", "Sent packet: ", str(i))
 
         while True:
             data = None
@@ -542,27 +526,25 @@ def send_file(client_socket, server_address):
 
             if data == None:
                 dbg("Posielam ti packet znovu, nedostal som ack")
-                client_socket.sendto(str.encode(packet), server_address)
+                packet = header_file(i, "20", file_message, packet_size)
+                packet_data = file_message[i * int(packet_size):i * int(packet_size) + int(packet_size)]
+                client_socket.sendto(str.encode(packet) + packet_data, server_address)
                 continue
 
             if data == "-1":
                 dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
-                client_socket.sendto(str.encode(packet), server_address)
+                packet = header_file(i, "20", file_message, packet_size)
+                packet_data = file_message[i * int(packet_size):i * int(packet_size) + int(packet_size)]
+                client_socket.sendto(str.encode(packet) + packet_data, server_address)
             if data == str(i):
                 dbg("Idem na dalsi packet")
                 break
-        tb_output_text.configure(state='normal')
-        tb_output_text.insert('end', "Client: ", "bold")
-        tb_output_text.insert('end', "Server recieved packet " + str(i) + '\n')
-        # wait for ACK from server
-        # if ACK was positive, continue
-        # if ACK was negative, resend packet again
+        PRINT_INFO("Client: ", "Server recieved packet: ", str(i))
+
     dbg("Now i finally sent all message packets")
     final_packet = header_file(0, "21", "0", 1)
     client_socket.sendto(str.encode(final_packet), server_address)
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Client: ", "bold")
-    tb_output_text.insert('end', "Succesfully sent file!" + '\n')
+    PRINT_INFO("Client: ", "Succesfully sent file!", " ")
 
 # ================================================================
 #   SERVER LOGIN
@@ -577,18 +559,12 @@ def server_login():
     global server_port, client_loop
     server_port = tb_port.get("1.0", "end-1c")
     server_socket.bind(("0.0.0.0", int(server_port)))  # obsadi si port
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Server: ", "bold")
-    tb_output_text.insert('end', "Server is running on port: " + server_port + '\n')
-    tb_output_text.configure(state='disabled')
+    PRINT_INFO("Server: ", "Server is running on port: ", server_port)
     dbg("waiting recvfrom")
     address = server_socket.recvfrom(1500)
     dbg("recvform:", address[1])
     server_socket.sendto(str.encode("1"), address[1])
-    tb_output_text.configure(state='normal')
-    tb_output_text.insert('end', "Established connection from address:" + str(address[1]) + '\n')
-    tb_output_text.configure(state='disabled')
-    dbg("Established connection from address:", address)
+    PRINT_INFO("Server: ", "Initialized connection from address: ", str(address[1]))
     server_handler(server_socket, address[1])
 
     # CLOSE SOCKET AND SWITCH FOR CLIENT
@@ -620,17 +596,11 @@ def server_handler(server_socket, address):
 
         if info == '4':
             dbg("Keep alive received, Connection is on")
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "Server: ", "bold")
-            tb_output_text.insert('end', "Keep alive received, Connection is on" + '\n')
-            tb_output_text.configure(state='disabled')
+            PRINT_INFO("Server: ", "Keep Alive recieved, Connection is on", " ")
             server_socket.sendto(str.encode("4"), address)
             info = ''
         if info == '9':
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "Server: ", "bold")
-            tb_output_text.insert('end', "I am going to swich as a Client" + '\n')
-            tb_output_text.configure(state='disabled')
+            PRINT_INFO("Server: ", "I am going to swich as a Client", " ")
             server_socket.sendto(str.encode("9"), address)
             server_loop = False
         if info == '19':
@@ -645,7 +615,6 @@ def server_handler(server_socket, address):
             server_switch = False
             server_socket.sendto(str.encode("99"), address)
             server_loop = False
-
     dbg("server while end")
 
 # ================================================================
@@ -672,19 +641,13 @@ def client_login():
             data, address = client_socket.recvfrom(1500)
             data = data.decode()
             if data == "1":
-                tb_output_text.configure(state='normal')
-                tb_output_text.insert('end', "Client: ", "bold")
-                tb_output_text.insert('end', "Connected to address:" + str(server_address) + '\n')
-                tb_output_text.configure(state='disabled')
+                PRINT_INFO("Client: ", "Connected to address: ", str(server_address))
                 keep_alive_thread(client_socket, server_address, 5).start()
                 client_handler(client_socket, server_address)
                 dbg("Connected to address:", server_address)
         except (socket.timeout, socket.gaierror) as e:
             print(e)
-            tb_output_text.configure(state='normal')
-            tb_output_text.insert('end', "Client: ", "bold")
-            tb_output_text.insert('end', "Connection not working try again", '\n')
-            tb_output_text.configure(state='disabled')
+            PRINT_ERROR("Client: ", "Connection not working try again", " ")
             print("Connection not working try again")
             continue
 
@@ -743,10 +706,7 @@ def client_handler(client_socket, server_address):
             data, address = client_socket.recvfrom(1500)
             data = data.decode()
             if data == "9":
-                tb_output_text.configure(state='normal')
-                tb_output_text.insert('end', "Client: ", "bold")
-                tb_output_text.insert('end', "Server is going to be a client" + '\n')
-                tb_output_text.configure(state='disabled')
+                PRINT_INFO("Client: ", "Server is going to be a Client", " ")
                 client_loop = False
         time.sleep(0.2)
     dbg("client handler end")
