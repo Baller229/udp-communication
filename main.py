@@ -170,7 +170,6 @@ def btn_stop_click():
     stop_client = True
     btn_start["text"] = "Start"
     btn_start["bg"] = "white"
-    #btn_start["disabledforeground"] = "black"
     btn_start["state"] = NORMAL
 
 # ================================================================
@@ -319,14 +318,10 @@ def header(id, type, data, p_size):
 def header_file(id, type, data, p_size):
     id_size = 24
     checksum_size = 32
-    checksum = ""
-    packet = 0
-    type_size = 16
     checksum_encoded = ""
     packet_id = format(id, 'b')
     packet_type = ''.join(format(i, '08b') for i in bytearray(str(type), encoding='utf-8'))
     packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
-    #packet_data = ''.join(format(i, '08b') for i in bytearray(str(temp_packet_data), encoding='utf-8'))
     if len(packet_id) < id_size:
         for i in range(id_size - len(packet_id)):
             packet_id = ''.join(('0', packet_id))
@@ -351,9 +346,7 @@ def recieve_message(server_sock):
 
     # wait for initial message from client thats says he is going to send message
     data = server_sock.recvfrom(1500)
-    stored_id = ["" for x in range(int(data[0]))]
     stored_data = ["" for x in range(int(data[0]))]
-    checksum_server = ""
     message = ""
 
     dbg("total num of packets is:", data[0])
@@ -465,14 +458,11 @@ def recieve_file(server_sock):
     # wait for initial message from client thats says he is going to send file and no of packets
     data = server_sock.recvfrom(1500)
     server_sock.sendto(str.encode(""), data[1])
-    stored_id = ["" for x in range(int(data[0]))]
     stored_data = ["" for x in range(int(data[0]))]
     data_name = server_sock.recvfrom(1500)
     file_name = str(data_name[0].decode())
     file_path = "c:\\server\\" + file_name
     file_size = 0
-    checksum_server = ""
-    file = ""
 
     dbg("total num of packets is:", data[0])
     dbg("file name is:", file_name)
@@ -566,11 +556,9 @@ def send_file(client_socket, server_address):
                 dbg("cakam na recv")
                 data = client_socket.recv(1500)
             dbg("Je po timeoute")
-
             dbg("Idem pozriet signalizacnu spravu od servera")
             if(data != None):
                 data = data.decode()
-
             if data == None:
                 dbg("Posielam ti packet znovu, nedostal som ack")
                 packet = header_file(i, "20", file_message, packet_size)
@@ -579,7 +567,6 @@ def send_file(client_socket, server_address):
                 PRINT_ERROR("Client: ", "Packet Length: ", str(len(packet) + len(packet_data)))
                 client_socket.sendto(str.encode(packet) + packet_data, server_address)
                 continue
-
             if data == "-1":
                 dbg("Posielam ti packet znovu, ak bol ten pred tym poskodeny")
                 packet = header_file(i, "20", file_message, packet_size)
@@ -639,7 +626,6 @@ def server_handler(server_socket, address):
     global server_loop, server_switch
     while server_loop:
 
-
         dbg("waiting recvfrom")
         data = server_socket.recvfrom(1500)  # tu caka, kym nepride message
         info = str(data[0].decode())
@@ -648,7 +634,6 @@ def server_handler(server_socket, address):
         if info == 'ahoj':
             server_socket.sendto(str.encode("1"), data[1])
             address = data[1]
-
         if info == '5':
             dbg("Keep alive received, Connection is on")
             PRINT_INFO("Server: ", "Keep Alive recieved, Connection is on", " ")
