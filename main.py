@@ -18,19 +18,19 @@ switch_roles_flag = False
 lock = threading.Lock()
 server_loop = True
 client_loop = True
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_port = 0;
 sending_message = False
 recieving_message = False
 sending_file = False
 recieving_file = False
 stop_client = False
-
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
 # ================================================================
-#
+#   PRINT IN MULTILINE MESSAGE BOX WITH RED FOREGROUND
 # ================================================================
+
 def PRINT_ERROR(role, strArg, message):
     tb_output_text.configure(state='normal')
     tb_output_text.insert('end', role, "bold")
@@ -38,16 +38,20 @@ def PRINT_ERROR(role, strArg, message):
     tb_output_text.configure(state='disabled')
     tb_output_text.see("end")
 
+# ================================================================
+#   PRINT IN MULTILINE MESSAGE BOX
+# ================================================================
+
 def PRINT_INFO(role, strArg, message):
     tb_output_text.configure(state='normal')
     tb_output_text.insert('end', role, "bold")
     tb_output_text.insert('end', strArg + message + '\n')
     tb_output_text.configure(state='disabled')
     tb_output_text.see("end")
+
 # ================================================================
 # LOGGER
 # ================================================================
-
 
 def dbg(*args, **kwargs):
     frame_obj = sys._getframe(1)  # currentframe()  # get frame of caller function
@@ -70,7 +74,9 @@ def dbg(*args, **kwargs):
 # ================================================================
 
 def initialize():
-    global tb_port, tb_ip, chb_server, chb_client, chb_server_checked, chb_client_checked, btn_start, tb_output_text, tb_packet_size, tb_message, chb_errors, chb_errors_checked
+    global tb_port, tb_ip, chb_server, chb_client, chb_server_checked, chb_client_checked, \
+           btn_start, tb_output_text, tb_packet_size, tb_message, chb_errors, chb_errors_checked
+
     # WINDOW
     window = Tk()
     window.title("UDP Chat aplication")
@@ -229,11 +235,11 @@ def keep_alive(client_sock, server_addr, interval):
             break
 
         client_sock.setblocking(1)
-        client_sock.sendto(str.encode('4'), server_addr)
+        client_sock.sendto(str.encode('5'), server_addr)
         data = client_sock.recv(1500)
         info = str(data.decode())
 
-        if info == '4':
+        if info == '5':
             PRINT_INFO("Client: ", "Connection is working", " ")
 
         else:
@@ -351,13 +357,13 @@ def recieve_message(server_sock):
     message = ""
 
     dbg("total num of packets is:", data[0])
-    server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
+    server_sock.sendto(str.encode(""), data[1]) # from server to client to start sending packets
     PRINT_INFO("Server: ", "Total packet number from Client will be: ", str(data[0].decode()))
     while True:
         #
         packet = server_sock.recvfrom(1500)
         p_type = str(packet[0].decode())
-        if p_type == "21": # or if packet id = total num of packets
+        if p_type == "25": # or if packet id = total num of packets
             break
         checksum_server = check_sum_server(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
         if(checksum_server != int(packet[0][40:72], 2)):
@@ -386,7 +392,7 @@ def recieve_message(server_sock):
 def send_message(client_socket, server_address):
     PRINT_INFO("Client: ", "I am going to send message", " ")
     dbg("I am going to calculate packet size and so on")
-    client_socket.sendto(str.encode("19"), server_address)  # 19 - idem posielat spravu, tak sa priprav
+    client_socket.sendto(str.encode("10"), server_address)  # 10 - idem posielat spravu, tak sa priprav
     client_socket.recvfrom(1500)
     # wait for server to listen for messages
     time.sleep(1)
@@ -446,7 +452,7 @@ def send_message(client_socket, server_address):
         PRINT_INFO("Client: ", "Server recieved packet ", str(i))
 
     dbg("Now i finally sent all message packets")
-    client_socket.sendto(str.encode("21"), server_address)
+    client_socket.sendto(str.encode("25"), server_address)
     PRINT_INFO("Client: ", "Succesfully sent message", " ")
 
 # ================================================================
@@ -470,7 +476,7 @@ def recieve_file(server_sock):
 
     dbg("total num of packets is:", data[0])
     dbg("file name is:", file_name)
-    server_sock.sendto(str.encode("25"), data[1]) # 25 from server to client to start sending packets
+    server_sock.sendto(str.encode(""), data[1]) # from server to client to start sending packets
     PRINT_INFO("Server: ", "Total packet number from Client will be: ", str(data[0].decode()))
     PRINT_INFO("Server: ", "File name: ", file_name)
     PRINT_INFO("Server: ", "File Path where I store file: ", file_path)
@@ -479,7 +485,7 @@ def recieve_file(server_sock):
         #
         packet = server_sock.recvfrom(1500)
         p_type = decode_binary_string(packet[0][24:40])
-        if p_type == "21": # or if packet id = total num of packets
+        if p_type == "25": # or if packet id = total num of packets
             break
         checksum_server = check_sum_server_file(packet[0][0:24], packet[0][24:40], packet[0][40:72], packet[0][72:])
 
@@ -514,7 +520,7 @@ def recieve_file(server_sock):
 def send_file(client_socket, server_address):
     PRINT_INFO("Client: ", "I am going to send file", " ")
     dbg("I am going to calculate file packet size and so on")
-    client_socket.sendto(str.encode("18"), server_address)  # 18 - idem posielat file, tak sa priprav
+    client_socket.sendto(str.encode("15"), server_address)  # 15 - idem posielat file, tak sa priprav
     client_socket.recvfrom(1500)
     # wait for server to listen for messages
     time.sleep(1)
@@ -587,7 +593,7 @@ def send_file(client_socket, server_address):
         PRINT_INFO("Client: ", "Server recieved packet: ", str(i))
 
     dbg("Now i finally sent all message packets")
-    final_packet = header_file(0, "21", "0", 1)
+    final_packet = header_file(0, "25", "0", 1)
     client_socket.sendto(str.encode(final_packet), server_address)
     PRINT_INFO("Client: ", "Succesfully sent file: ", file_name)
 
@@ -643,28 +649,28 @@ def server_handler(server_socket, address):
             server_socket.sendto(str.encode("1"), data[1])
             address = data[1]
 
-        if info == '4':
+        if info == '5':
             dbg("Keep alive received, Connection is on")
             PRINT_INFO("Server: ", "Keep Alive recieved, Connection is on", " ")
-            server_socket.sendto(str.encode("4"), address)
+            server_socket.sendto(str.encode("5"), address)
             info = ''
-        if info == '9':
+        if info == '30':
             PRINT_INFO("Server: ", "I am going to swich as a Client", " ")
-            server_socket.sendto(str.encode("9"), address)
+            server_socket.sendto(str.encode("30"), address)
             server_loop = False
-        if info == '19':
+        if info == '10':
             dbg("Client is going to send me message, so I am going to be ready")
-            server_socket.sendto(str.encode("19"), address)
+            server_socket.sendto(str.encode("10"), address)
             recieve_message(server_socket)
-        if info == '18':
+        if info == '15':
             dbg("Client is going to send me file, so I am going to be ready")
-            server_socket.sendto(str.encode("18"), address)
+            server_socket.sendto(str.encode("15"), address)
             recieve_file(server_socket)
-        if info == '55':
+        if info == '35':
             PRINT_INFO("Server: ", "Client disconnected...", " ")
         if server_switch:
             server_switch = False
-            server_socket.sendto(str.encode("99"), address)
+            server_socket.sendto(str.encode("30"), address)
             server_loop = False
     dbg("server while end")
 
@@ -736,13 +742,13 @@ def client_handler(client_socket, server_address):
         if ready[0]:
             switch = client_socket.recv(1500)
         if switch != 0:
-            if switch.decode() == "99":
+            if switch.decode() == "30":
                 switch_roles_flag = True
                 server_loop = False
                 break
 
         if stop_client:
-            client_socket.sendto(str.encode("55"), server_address)
+            client_socket.sendto(str.encode("35"), server_address)
             break
 
         if sending_message:
@@ -765,10 +771,10 @@ def client_handler(client_socket, server_address):
 
         if switch_roles_flag:
             switch_roles_flag = False
-            client_socket.sendto(str.encode("9"), server_address)
+            client_socket.sendto(str.encode("30"), server_address)
             data, address = client_socket.recvfrom(1500)
             data = data.decode()
-            if data == "9":
+            if data == "30":
                 PRINT_INFO("Client: ", "Server is going to be a Client", " ")
                 client_loop = False
         time.sleep(0.2)
