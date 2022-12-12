@@ -249,21 +249,8 @@ def keep_alive(client_sock, server_addr, interval):
     dbg("keep alive end")
 
 # ================================================================
-#   HEADER
+#   CHECK SUM
 # ================================================================
-def check_sum_file(packet_id, packet_type, packet_data):
-    global chb_errors_checked
-    checksum = ''
-    errors = 0
-    if chb_errors_checked.get() == 1:
-        errors = random.randint(0, 1)
-        dbg("ERROR:", errors)
-    crc_checksum = 0
-    crc_checksum = binascii.crc32(packet_data, 0)
-    crc_checksum -= errors
-    count = len(packet_id) + len(packet_type) + len(packet_data) + 32 + errors
-    checksum = format(count, 'b')
-    return crc_checksum
 
 def check_sum(p_header):
     global chb_errors_checked
@@ -277,20 +264,19 @@ def check_sum(p_header):
     crc_checksum += errors
     return crc_checksum
 
-def check_sum_server_file(packet_id, packet_type, checksum, packet_data):
-
-    crc_checksum_server = binascii.crc32(packet_data, 0)
-    return crc_checksum_server
 
 def check_sum_server(p_header):
     crc_checksum_server = 0
     crc_checksum_server += binascii.crc32(p_header, 0)
     return crc_checksum_server
 
+# ================================================================
+#   HEADER
+# ================================================================
+
 def header(id, type, data, p_size):
 
     p_type = int(type)
-
     id_bytes = id.to_bytes(3, byteorder='big')
     type_bytes = p_type.to_bytes(2, byteorder='big')
     temp_packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
@@ -304,7 +290,6 @@ def header(id, type, data, p_size):
 def header_file(id, type, data, p_size):
 
     p_type = int(type)
-
     id_bytes = id.to_bytes(3, byteorder='big')
     type_bytes = p_type.to_bytes(2, byteorder='big')
     packet_data = data[id*int(p_size):id*int(p_size)+int(p_size)]
@@ -317,8 +302,6 @@ def header_file(id, type, data, p_size):
         packet = id_bytes + type_bytes
     return packet
 
-def decode_binary_string(s):
-    return ''.join(chr(int(s[i*8:i*8+8],2)) for i in range(len(s)//8))
 # ================================================================
 #   RECIEVE MESSAGE
 # ================================================================
@@ -723,11 +706,9 @@ def client_handler(client_socket, server_address):
         if sending_message:
             keep_alive_stop = True
             # wait keep alive to stop
-            time.sleep(3)
             send_message(client_socket, server_address)
             sending_message = False
             keep_alive_stop = False
-            time.sleep(3)
 
         if sending_file:
             keep_alive_stop = True
