@@ -488,8 +488,8 @@ def send_file(client_socket, server_address):
     file_size = os.path.getsize(file_path)
     file = open(file_path, "rb")
     file_message = file.read();
-    if int(packet_size) > 1491:
-        packet_size = "1491"
+    if int(packet_size) > 1459:
+        packet_size = "1459"
     if int(packet_size) > int(file_size):
         number_of_packets = 1
     else:
